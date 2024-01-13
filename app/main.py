@@ -10,6 +10,9 @@ from fastapi.responses import JSONResponse, FileResponse
 import pandas as pd
 import requests
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="Procesador de datos")
 
@@ -169,7 +172,8 @@ async def download(file_path: str):
     # Usa FileResponse para enviar el archivo al cliente
     return FileResponse(file_path, filename=file_path)
 
-
+host = os.getenv("HOST", "127.0.0.1")
+port = int(os.getenv("PORT", 8000))
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=True)
+    uvicorn.run("main:app", host=host, port=port, reload=True)
