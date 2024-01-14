@@ -114,7 +114,9 @@ async def upload(api_key: str = Form(...), file: UploadFile = File(...)):
     try:
         file_ext = file.filename.split(".").pop()
         file_name = uuid()
-        file_path = os.path.join(UPLOADS_FOLDER, f"{file_name}.{file_ext}")
+        # file_path = os.path.join(UPLOADS_FOLDER, f"{file_name}.{file_ext}")
+        file_path = f"{file_name}.{file_ext}"
+        
         
         with open(file_path, "wb") as f:
             content = await file.read()
@@ -122,12 +124,10 @@ async def upload(api_key: str = Form(...), file: UploadFile = File(...)):
 
         df_procesado = process_excel_file_elevation(file_path, api_key_elevacion)
 
-        save_data_processing_path = os.path.join(UPLOADS_FOLDER, f"{file_name}_processed_elevation.{file_ext}")
-        
-        print("save_data_processing_path", save_data_processing_path)
+        # save_data_processing_path = os.path.join(UPLOADS_FOLDER, f"{file_name}_processed_elevation.{file_ext}")
         
         nuevo_nombre = f"{file_name}_processed_elevation.{file_ext}"
-        df_procesado.to_excel(save_data_processing_path, index=False)
+        df_procesado.to_excel(nuevo_nombre, index=False)
 
         return JSONResponse(content={"success": True, "file_path": nuevo_nombre, "message": "File uploaded and processed successfully"})
     
@@ -173,17 +173,19 @@ async def opencage(api_key: str = Form(...), file: UploadFile = File(...)):
     try:
         file_ext = file.filename.split(".").pop()
         file_name = uuid()
-        file_path = os.path.join(UPLOADS_FOLDER, f"{file_name}.{file_ext}")
+        # file_path = os.path.join(UPLOADS_FOLDER, f"{file_name}.{file_ext}")
+        file_path = f"{file_name}.{file_ext}"
+
         with open(file_path, "wb") as f:
             content = await file.read()
             f.write(content)
         
         df_procesado = process_excel_file_opencage(file_path, api_key)
         
-        save_data_processing_path =os.path.join(UPLOADS_FOLDER, f"{file_name}_processed_OpenCage.{file_ext}")
+        # save_data_processing_path =os.path.join(UPLOADS_FOLDER, f"{file_name}_processed_OpenCage.{file_ext}")
         
         nuevo_nombre = f"{file_name}_processed_OpenCage.{file_ext}"
-        df_procesado.to_excel(save_data_processing_path, index=False)
+        df_procesado.to_excel(nuevo_nombre, index=False)
         
         return JSONResponse(content={"success": True, "file_path": nuevo_nombre, "message": "File uploaded and processed successfully"})
       
@@ -269,17 +271,18 @@ async def googlegeocoding(api_key: str = Form(...), file: UploadFile = File(...)
     try:
         file_ext = file.filename.split(".").pop()
         file_name = uuid()
-        file_path = os.path.join(UPLOADS_FOLDER, f"{file_name}.{file_ext}")
+        # file_path = os.path.join(UPLOADS_FOLDER, f"{file_name}.{file_ext}")
+        file_path = f"{file_name}.{file_ext}"
         with open(file_path, "wb") as f:
             content = await file.read()
             f.write(content)
 
         df_procesado = process_excel_file_google(file_path, api_key)
 
-        save_data_processing_path =os.path.join(UPLOADS_FOLDER, f"{file_name}_processed_GoogleGeocoding.{file_ext}")
+        # save_data_processing_path =os.path.join(UPLOADS_FOLDER, f"{file_name}_processed_GoogleGeocoding.{file_ext}")
 
         nuevo_nombre = f"{file_name}_processed_GoogleGeocoding.{file_ext}"
-        df_procesado.to_excel(save_data_processing_path, index=False)
+        df_procesado.to_excel(nuevo_nombre, index=False)
 
         return JSONResponse(content={"success": True, "file_path": nuevo_nombre, "message": "File uploaded and processed successfully"})
     
@@ -335,15 +338,15 @@ def obtener_nombre_ubicacion_google(lat, lon, api_key):
 
 @app.get("/download/{file_name}")
 async def download(file_name: str):
-    file_path = os.path.join(UPLOADS_FOLDER, file_name)
-    print(file_path)
+    # file_path = os.path.join(UPLOADS_FOLDER, file_name)
+    # print(file_path)
 
     # Asegúrate de que el archivo exista antes de intentar enviarlo
-    if not os.path.exists(file_path):
+    if not os.path.exists(file_name):
         raise HTTPException(status_code=404, detail="File not found")
     
     # Usa FileResponse para enviar el archivo al cliente
-    return FileResponse(file_path, filename=file_name)
+    return FileResponse(file_name, filename=file_name)
 
 
     df = pd.read_excel(ruta_archivo)
