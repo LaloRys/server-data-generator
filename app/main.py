@@ -16,10 +16,16 @@ load_dotenv()
 
 app = FastAPI(title="Procesador de datos")
 
-origins = ["http://localhost:3000", "https://location-data-generator.vercel.app"]  # Agrega aquí la URL de tu frontend
+# Obtener el valor de API_URL de las variables de entorno
+api_url = os.getenv("API_URL")
+
+# Si API_URL no está definida, usa http://localhost:3000
+if api_url is None:
+    api_url = "http://localhost:3000"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=[api_url],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
