@@ -10,8 +10,9 @@ COPY ./app /app
 # Instala las dependencias de la aplicación
 RUN pip install -r /app/requirements.txt
 
+# Define las variables de entorno HOST y PORT
+ENV HOST=0.0.0.0
+# ENV PORT=8000
+
 # Comando para ejecutar la aplicación cuando se inicie el contenedor
 CMD ["python", "/app/main.py"]
-
-# Expone el puerto en el que la aplicación se ejecuta
-EXPOSE 8000
