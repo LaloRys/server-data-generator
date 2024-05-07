@@ -42,7 +42,7 @@ posts = [
 UPLOADS_FOLDER = "uploads"
 
 class Post(BaseModel):
-    id: str | None = None
+    id: str
     title: str
     author: str
     content: Text
