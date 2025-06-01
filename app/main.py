@@ -119,10 +119,10 @@ async def upload(api_key: str = Form(...), file: UploadFile = File(...)):
 
     try:
         file_ext = file.filename.split(".").pop()
-        file_name = uuid()
-        # file_path = os.path.join(UPLOADS_FOLDER, f"{file_name}.{file_ext}")
+        # Crear nombre más corto con fecha y hora
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"temp_{timestamp}"
         file_path = f"{file_name}.{file_ext}"
-        
         
         with open(file_path, "wb") as f:
             content = await file.read()
@@ -130,9 +130,8 @@ async def upload(api_key: str = Form(...), file: UploadFile = File(...)):
 
         df_procesado = process_excel_file_elevation(file_path, api_key_elevacion)
 
-        # save_data_processing_path = os.path.join(UPLOADS_FOLDER, f"{file_name}_processed_elevation.{file_ext}")
-        
-        nuevo_nombre = f"{file_name}_processed_elevation.{file_ext}"
+        # Nombre de archivo procesado más descriptivo
+        nuevo_nombre = f"elevation_{timestamp}.{file_ext}"
         df_procesado.to_excel(nuevo_nombre, index=False)
 
         return JSONResponse(content={"success": True, "file_path": nuevo_nombre, "message": "File uploaded and processed successfully"})
@@ -178,8 +177,9 @@ async def opencage(api_key: str = Form(...), file: UploadFile = File(...)):
     
     try:
         file_ext = file.filename.split(".").pop()
-        file_name = uuid()
-        # file_path = os.path.join(UPLOADS_FOLDER, f"{file_name}.{file_ext}")
+        # Crear nombre más corto con fecha y hora
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"temp_{timestamp}"
         file_path = f"{file_name}.{file_ext}"
 
         with open(file_path, "wb") as f:
@@ -188,9 +188,8 @@ async def opencage(api_key: str = Form(...), file: UploadFile = File(...)):
         
         df_procesado = process_excel_file_opencage(file_path, api_key)
         
-        # save_data_processing_path =os.path.join(UPLOADS_FOLDER, f"{file_name}_processed_OpenCage.{file_ext}")
-        
-        nuevo_nombre = f"{file_name}_processed_OpenCage.{file_ext}"
+        # Nombre de archivo procesado más descriptivo
+        nuevo_nombre = f"opencage_{timestamp}.{file_ext}"
         df_procesado.to_excel(nuevo_nombre, index=False)
         
         return JSONResponse(content={"success": True, "file_path": nuevo_nombre, "message": "File uploaded and processed successfully"})
@@ -200,74 +199,133 @@ async def opencage(api_key: str = Form(...), file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail="Internal Server Error")
     
 def process_excel_file_opencage(file_path, api_key):
-        ubicaciones_oc_consultadas = {}
-        claves_ubicacion = ['village', 'town', 'county', 'city', 'province', 'state', 'region', 'district', 'country']
+    ubicaciones_oc_consultadas = {}
+    claves_ubicacion = ['village', 'town', 'county', 'city', 'province', 'state', 'region', 'district', 'country']
 
-        df = pd.read_excel(file_path)
+    df = pd.read_excel(file_path)
 
-        for index, row in df.iterrows():
-            latitud = row['latitude']
-            longitud = row['longitude']
+    for index, row in df.iterrows():
+        latitud = row['latitude']
+        longitud = row['longitude']
 
-            # Obtener el nombre de la ubicación
-            nombre_ubicacion = obtener_nombre_ubicacion_opencage(latitud, longitud, ubicaciones_oc_consultadas, api_key)
+        # Validar que las coordenadas no sean nulas/vacías
+        if pd.notnull(latitud) and pd.notnull(longitud):
+            try:
+                # Convertir a float para asegurar que son números válidos
+                lat_float = float(latitud)
+                lon_float = float(longitud)
+                
+                # Validar rangos válidos de coordenadas
+                if -90 <= lat_float <= 90 and -180 <= lon_float <= 180:
+                    # Obtener el nombre de la ubicación
+                    nombre_ubicacion = obtener_nombre_ubicacion_opencage(lat_float, lon_float, ubicaciones_oc_consultadas, api_key)
 
-            # Inicializar una lista para almacenar las ubicaciones
-            ubicaciones = []
+                    if nombre_ubicacion:
+                        # Inicializar una lista para almacenar las ubicaciones
+                        ubicaciones = []
 
-            # Iterar sobre las claves y agregar las partes de la ubicación a la lista
-            for clave in claves_ubicacion:
-                ubicacion_parte = nombre_ubicacion.get(clave, '')
-                if ubicacion_parte:
-                    ubicaciones.append(ubicacion_parte)
+                        # Iterar sobre las claves y agregar las partes de la ubicación a la lista
+                        for clave in claves_ubicacion:
+                            ubicacion_parte = nombre_ubicacion.get(clave, '')
+                            if ubicacion_parte:
+                                ubicaciones.append(ubicacion_parte)
 
-            # Combinar las partes de la ubicación en una sola cadena
-            ubicacion_formateada = ', '.join(ubicaciones).rstrip(', ')
+                        # Combinar las partes de la ubicación en una sola cadena
+                        ubicacion_formateada = ', '.join(ubicaciones).rstrip(', ')
 
-            # Verificar si la ubicación está disponible
-            if ubicacion_formateada:
+                        # Verificar si la ubicación está disponible
+                        if ubicacion_formateada:
+                            for clave in claves_ubicacion:
+                                df.at[index, clave.capitalize()] = nombre_ubicacion[clave]
+                            df.at[index, 'Ubicacion'] = ubicacion_formateada
+                            df.at[index, 'Alpha-3'] = nombre_ubicacion['alpha-3']
+                            df.at[index, 'Url(open street map)'] = nombre_ubicacion['url']
+                        else:
+                            print(f'Ubicación no disponible para coordenadas: {lat_float}, {lon_float}')
+                            # Agregar valores vacíos para mantener la estructura
+                            for clave in claves_ubicacion:
+                                df.at[index, clave.capitalize()] = ''
+                            df.at[index, 'Ubicacion'] = 'Ubicación no disponible'
+                            df.at[index, 'Alpha-3'] = ''
+                            df.at[index, 'Url(open street map)'] = ''
+                else:
+                    print(f'Coordenadas fuera de rango válido: {lat_float}, {lon_float}')
+                    # Agregar valores de error
+                    for clave in claves_ubicacion:
+                        df.at[index, clave.capitalize()] = ''
+                    df.at[index, 'Ubicacion'] = 'Coordenadas inválidas'
+                    df.at[index, 'Alpha-3'] = ''
+                    df.at[index, 'Url(open street map)'] = ''
+                    
+            except (ValueError, TypeError) as e:
+                print(f'Error al convertir coordenadas en fila {index}: {latitud}, {longitud} - {e}')
+                # Agregar valores de error
                 for clave in claves_ubicacion:
-                    df.at[index, clave.capitalize()] = nombre_ubicacion[clave]
-                df.at[index, 'Ubicacion'] = ubicacion_formateada
-                df.at[index, 'Alpha-3'] = nombre_ubicacion['alpha-3']
-                df.at[index, 'Url(open street map)'] = nombre_ubicacion['url']
-            else:
-                print('Ubicación no disponible')
+                    df.at[index, clave.capitalize()] = ''
+                df.at[index, 'Ubicacion'] = 'Error en coordenadas'
+                df.at[index, 'Alpha-3'] = ''
+                df.at[index, 'Url(open street map)'] = ''
+        else:
+            print(f'Coordenadas vacías o nulas en fila {index}: {latitud}, {longitud}')
+            # Agregar valores vacíos para registros sin coordenadas
+            for clave in claves_ubicacion:
+                df.at[index, clave.capitalize()] = ''
+            df.at[index, 'Ubicacion'] = 'Sin coordenadas'
+            df.at[index, 'Alpha-3'] = ''
+            df.at[index, 'Url(open street map)'] = ''
 
-        return df
+    return df
 
 def obtener_nombre_ubicacion_opencage(lat, lon, ubicaciones_oc_consultadas, api_key):
-    
     coordenadas = (lat, lon)
     if coordenadas in ubicaciones_oc_consultadas:
         # Si las coordenadas ya se han consultado, devuelve la información almacenada previamente.
         return ubicaciones_oc_consultadas[coordenadas]
     
     url = f'https://api.opencagedata.com/geocode/v1/json?key={api_key}&q={lat},{lon}&language=en'
-    response = requests.get(url)
+    
+    try:
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data['results']:
+                components = data['results'][0].get('components', {})
+                
+                # Definir las claves de ubicación que deseas extraer
+                claves_ubicacion = ['village', 'town', 'county', 'city', 'province', 'state', 'region', 'district', 'country']
+                
+                info_ubicacion = {}
+                for clave in claves_ubicacion:
+                    info_ubicacion[clave] = components.get(clave, '')
 
-    if response.status_code == 200:
-        data = response.json()
-        if data['results']:
-            components = data['results'][0].get('components', {})
-            
-            # Definir las claves de ubicación que deseas extraer
-            claves_ubicacion = ['village', 'town', 'county', 'city', 'province', 'state', 'region', 'district', 'country']
-            
-            info_ubicacion = {}
-            for clave in claves_ubicacion:
-                info_ubicacion[clave] = components.get(clave, '')
-
-            info_ubicacion['alpha-3'] = components.get('ISO_3166-1_alpha-3', '')
-            info_ubicacion['url'] = data['results'][0]['annotations']['OSM']['url']
-            ubicaciones_oc_consultadas[coordenadas] = info_ubicacion
-            return info_ubicacion
+                info_ubicacion['alpha-3'] = components.get('ISO_3166-1_alpha-3', '')
+                info_ubicacion['url'] = data['results'][0]['annotations']['OSM']['url']
+                ubicaciones_oc_consultadas[coordenadas] = info_ubicacion
+                return info_ubicacion
+            else:
+                print(f"Alerta: Ubicacion desconocida para {lat}, {lon}")
+                # Retornar estructura vacía en lugar de lanzar excepción
+                info_vacia = {clave: '' for clave in ['village', 'town', 'county', 'city', 'province', 'state', 'region', 'district', 'country']}
+                info_vacia['alpha-3'] = ''
+                info_vacia['url'] = ''
+                ubicaciones_oc_consultadas[coordenadas] = info_vacia
+                return info_vacia
         else:
-            print("Alerta: Ubicacion desconocida")
-            raise HTTPException(status_code=500, detail="Internal Server Error")
-    else:
-        print("Error: Error al consultar la API de OpenCage")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+            print(f"Error HTTP {response.status_code} al consultar la API de OpenCage para {lat}, {lon}")
+            # Retornar estructura vacía en lugar de lanzar excepción
+            info_error = {clave: '' for clave in ['village', 'town', 'county', 'city', 'province', 'state', 'region', 'district', 'country']}
+            info_error['alpha-3'] = ''
+            info_error['url'] = ''
+            return info_error
+            
+    except requests.exceptions.RequestException as e:
+        print(f"Error de conexión al consultar OpenCage para {lat}, {lon}: {e}")
+        # Retornar estructura vacía en lugar de lanzar excepción
+        info_error = {clave: '' for clave in ['village', 'town', 'county', 'city', 'province', 'state', 'region', 'district', 'country']}
+        info_error['alpha-3'] = ''
+        info_error['url'] = ''
+        return info_error
     
 
 @app.post("/googlegeocoding/")
@@ -276,18 +334,19 @@ async def googlegeocoding(api_key: str = Form(...), file: UploadFile = File(...)
     
     try:
         file_ext = file.filename.split(".").pop()
-        file_name = uuid()
-        # file_path = os.path.join(UPLOADS_FOLDER, f"{file_name}.{file_ext}")
+        # Crear nombre más corto con fecha y hora
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"temp_{timestamp}"
         file_path = f"{file_name}.{file_ext}"
+        
         with open(file_path, "wb") as f:
             content = await file.read()
             f.write(content)
 
         df_procesado = process_excel_file_google(file_path, api_key)
 
-        # save_data_processing_path =os.path.join(UPLOADS_FOLDER, f"{file_name}_processed_GoogleGeocoding.{file_ext}")
-
-        nuevo_nombre = f"{file_name}_processed_GoogleGeocoding.{file_ext}"
+        # Nombre de archivo procesado más descriptivo
+        nuevo_nombre = f"google_{timestamp}.{file_ext}"
         df_procesado.to_excel(nuevo_nombre, index=False)
 
         return JSONResponse(content={"success": True, "file_path": nuevo_nombre, "message": "File uploaded and processed successfully"})
